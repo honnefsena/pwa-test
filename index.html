@@ -171,7 +171,7 @@
 
       const app = createApp({
         setup() {
-          const eventTitle = ref("Upcoming Event")
+          const eventTitle = ref("Conferência Impacto")
           const eventDescription = ref(
             `Join us for an amazing experience that you won't want to miss!`
           )
@@ -230,12 +230,63 @@
         })
       }
 
-      // Service Worker Registration
+      // Service Worker Registration and Update Handling
       if ("serviceWorker" in navigator) {
+        let refreshing = false
+
+        // Handle service worker updates
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (!refreshing) {
+            refreshing = true
+            window.location.reload()
+          }
+        })
+
         window.addEventListener("load", () => {
           navigator.serviceWorker
             .register("/sw.js")
-            .then((registration) => console.log("ServiceWorker registered"))
+            .then((registration) => {
+              console.log("ServiceWorker registered")
+
+              // Check for updates every 1 hour
+              setInterval(() => {
+                registration.update()
+              }, 1000 * 60 * 60)
+
+              registration.addEventListener("updatefound", () => {
+                const newWorker = registration.installing
+
+                newWorker.addEventListener("statechange", () => {
+                  if (
+                    newWorker.state === "installed" &&
+                    navigator.serviceWorker.controller
+                  ) {
+                    // New version available
+                    const updatePrompt = document.createElement("div")
+                    updatePrompt.style.cssText = `
+                                      position: fixed;
+                                      top: 20px;
+                                      left: 50%;
+                                      transform: translateX(-50%);
+                                      background: var(--accent-color);
+                                      padding: 1rem 2rem;
+                                      border-radius: 8px;
+                                      cursor: pointer;
+                                      z-index: 1000;
+                                  `
+                    updatePrompt.textContent =
+                      "New version available! Click to update."
+
+                    updatePrompt.addEventListener("click", () => {
+                      newWorker.postMessage("skipWaiting")
+                      updatePrompt.remove()
+                    })
+
+                    document.body.appendChild(updatePrompt)
+                  }
+                })
+              })
+            })
             .catch((err) =>
               console.log("ServiceWorker registration failed:", err)
             )
